@@ -22,15 +22,11 @@
 package edu.nmsu.cs.webserver;
 
 import java.io.*;
+import java.util.*;
+import java.time.*;
 import java.net.Socket;
-import java.nio.file.Files;
 import java.text.DateFormat;
-import java.util.Date;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.Date;
-import java.util.Scanner;
-import java.util.TimeZone;
+import java.io.BufferedInputStream;
 
 public class WebWorker implements Runnable {
 
@@ -52,47 +48,88 @@ public class WebWorker implements Runnable {
 		System.err.println("Handling connection...");
       
 		try {
-         
-         String fileName;
+
+         String fileType = "image";
 			InputStream is = socket.getInputStream();
 			OutputStream os = socket.getOutputStream();
-			fileName = readHTTPRequest(is);
-			writeHTTPHeader(os, "text/html", fileName);
+			String fileName = readHTTPRequest(is);
+			//writeHTTPHeader(os, "text/html", fileName);
          
-         if(fileName.equals(""))
-			   writeContent(os);
-            
-			else {
+         if(fileName.contains(".html")) {
+				writeHTTPHeader(os, "text/html", fileName);
+            fileType = "html";
+			} // end html
          
-            try {
+			else if(fileName.contains(".gif")) {
+				writeHTTPHeader(os, "image/gif", fileName);
+			} // end gif
+         
+			else if(fileName.toLowerCase().contains(".png")) {
+				writeHTTPHeader(os, "image/png", fileName);
+			} // end png
+         
+			else if(fileName.contains(".jpg")||fileName.toLowerCase().contains(".jpeg")) {
+				writeHTTPHeader(os, "image/jpeg", fileName);
+			} // end jpg
+         
+			else if(fileName.equals("")) {
+				writeHTTPHeader(os, "text/html", fileName);
+				writeContent(os);
+			} // end empty
+         
+         else {
+            return; 
+         } // end error case
             
-               FileReader file = new FileReader(fileName);
-               Scanner scan = new Scanner(file);
-               String fileLine = "";
+         switch(fileType) {
+         
+            case "html":
+            
+               try {
                
-               DateTimeFormatter dtf = DateTimeFormatter.ofPattern("MM/dd/yy");
-               LocalDateTime now = LocalDateTime.now();
-               String date = dtf.format(now);
-               
-               while (scan.hasNextLine()){
-               
-                  fileLine = scan.nextLine();
-                  fileLine = fileLine.replaceAll("<cs371date>", date);
-                  fileLine = fileLine.replaceAll("<cs371server>", "Avery's Server");
-                  os.write(fileLine.getBytes());
+			         FileReader file = new FileReader(fileName);
+			         Scanner scan = new Scanner(file);
+			         String fileLine = "";
                   
-               } // end while
+			         while(scan.hasNextLine()) {
+				         fileLine = scan.nextLine();
+				         LocalDate date = LocalDate.now();
+				         fileLine = fileLine.replaceAll("<cs371date>", date.toString());
+				         fileLine = fileLine.replaceAll("<cs371server>", "Avery's Server");
+				         os.write(fileLine.getBytes());
+			         } // end while
+                  
+			         scan.close();
+                  
+			      } // end try
+               
+              		      catch(Exception e){
+				      System.err.println("Output error: " + e);
+			      } // end catch
+               
+               break;
+               
+            case "image":
             
-               scan.close();
-            
-            } // end try
-            
-            catch(Exception e) {
-               System.err.println("Output error: " + e);
-            } // end catch
-            
-         } // end else
-         
+               try {
+	
+                 		 BufferedInputStream fis = new BufferedInputStream(new FileInputStream(fileName));
+			         int byteRead = fis.read();
+			         while(byteRead != -1) {
+				         os.write(byteRead);
+				         byteRead = fis.read(); 
+			         } // end while
+			         is.close();
+			      } // end try
+               
+               catch(Exception e){
+				      System.err.println("Output error: " + e);
+			      } // end catch		
+
+               break;
+               
+         } // end switch
+    
          os.flush();
 			socket.close();
          
@@ -122,11 +159,10 @@ public class WebWorker implements Runnable {
                
 				line = r.readLine();
 				System.err.println("Request line: (" + line + ")");
-            
-            // this is new
+   
             if(line.contains("GET")) {
                fileName = line.substring(5, line.length()-9);
-               System.out.println(fileName);
+               //System.out.println(fileName);
             } // end if
             
 				if (line.length() == 0)
@@ -158,7 +194,7 @@ public class WebWorker implements Runnable {
 	private void writeHTTPHeader(OutputStream os, String contentType, String fileName) throws Exception {
    
 		Date d = new Date();
-      		boolean err404 = false;
+      boolean err404 = false;
 		DateFormat df = DateFormat.getDateTimeInstance();
 		df.setTimeZone(TimeZone.getTimeZone("GMT"));
       
@@ -173,9 +209,7 @@ public class WebWorker implements Runnable {
       
       if (!err404)
          os.write("HTTP/1.1 200 OK\n".getBytes());
-         
-//       File filepath = new File (fileName);
-//       contentType = Files.probeContentType(filepath.toPath());
+
 		os.write("Date: ".getBytes());
 		os.write((df.format(d)).getBytes());
 		os.write("\n".getBytes());
@@ -183,7 +217,8 @@ public class WebWorker implements Runnable {
 		os.write("Connection: close\n".getBytes());
 		os.write("Content-Type: ".getBytes());
 		os.write(contentType.getBytes());
-		os.write("\n\n".getBytes()); // HTTP header ends with 2 newlines
+		os.write("\n\n".getBytes());
+      return;
       
 	} // end writeHTTPHeader
 
