@@ -1,4 +1,4 @@
-<project name ="SimpleWebServer" default="build" basedir=".">
+<project name ="SimpleWebServer" default="run" basedir=".">
 
    <description> 
       Cleans and compiles code. Creates target on port 8080.
